@@ -1,0 +1,335 @@
+.data-editor {
+  background: white;
+  border-radius: 16px;
+  padding: 20px 24px;
+  border: 1px solid #eef3fa;
+  box-shadow: 0 6px 18px rgba(0, 20, 40, 0.04);
+}
+
+.data-editor .editor-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e9edf4;
+}
+
+.data-editor .back-btn {
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.data-editor .editor-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.data-editor .editor-title h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #0b1a33;
+  margin: 0;
+}
+
+.data-editor .editor-title h2 i {
+  color: #3b7bd6;
+}
+
+.data-editor .editor-info {
+  color: #62748e;
+  font-size: 14px;
+}
+
+.data-editor .editor-error {
+  background: #fce9e9;
+  color: #b33a3a;
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+
+.data-editor .editor-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.data-editor .toolbar-spacer {
+  flex: 1;
+}
+
+.data-editor .feedback-inline {
+  font-size: 13px;
+  padding: 8px 12px;
+}
+
+.data-editor .editor-table-container {
+  overflow-x: auto;
+  border: 1px solid #e9eff7;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.data-editor .editor-loading {
+  text-align: center;
+  padding: 40px;
+  color: #62748e;
+  font-size: 15px;
+}
+
+.data-editor .editor-loading i {
+  margin-right: 8px;
+  color: #3b7bd6;
+}
+
+.data-editor .editor-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.data-editor .editor-table th {
+  background: #f8faff;
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: #1d2f4a;
+  border-bottom: 2px solid #e9eff7;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+.data-editor .editor-table th .th-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data-editor .editor-table th .col-name {
+  color: #0b1a33;
+}
+
+.data-editor .editor-table th .col-type {
+  font-size: 11px;
+  font-weight: 400;
+  color: #7c92b5;
+  background: #eef3fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.data-editor .editor-table th .col-rename-btn {
+  background: none;
+  border: none;
+  color: #7c92b5;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  opacity: 0;
+  transition: 0.15s;
+}
+
+.data-editor .editor-table th:hover .col-rename-btn {
+  opacity: 1;
+}
+
+.data-editor .editor-table th .col-rename-btn:hover {
+  color: #3b7bd6;
+  background: #eef3fa;
+}
+
+.data-editor .editor-table td {
+  padding: 10px 16px;
+  border-bottom: 1px solid #f0f4fa;
+  color: #1d2f4a;
+}
+
+.data-editor .editor-table td.actions-col {
+  width: 80px;
+  text-align: center;
+}
+
+.data-editor .editor-table td .cell-value {
+  display: block;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-editor .editor-table td .cell-input {
+  width: 100%;
+  padding: 6px 10px;
+  border: 2px solid #3b7bd6;
+  border-radius: 6px;
+  font-size: 14px;
+  outline: none;
+}
+
+.data-editor .editor-table tbody tr:hover {
+  background: #f8faff;
+}
+
+.data-editor .editor-table .row-edit-btn {
+  background: none;
+  border: none;
+  color: #7c92b5;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: 0.15s;
+  margin-right: 4px;
+}
+
+.data-editor .editor-table tbody tr:hover .row-edit-btn {
+  opacity: 1;
+}
+
+.data-editor .editor-table .row-edit-btn:hover {
+  color: #3b7bd6;
+  background: #eef3fa;
+}
+
+.data-editor .editor-table .row-delete-btn {
+  background: none;
+  border: none;
+  color: #7c92b5;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: 0.15s;
+}
+
+.data-editor .editor-table tbody tr:hover .row-delete-btn {
+  opacity: 1;
+}
+
+.data-editor .editor-table .row-delete-btn:hover {
+  color: #b33a3a;
+  background: #fce9e9;
+}
+
+.data-editor .editor-table .empty-row {
+  text-align: center;
+  padding: 40px;
+  color: #7c92b5;
+}
+
+.data-editor .editor-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.data-editor .pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.data-editor .pagination .page-info {
+  font-size: 14px;
+  color: #62748e;
+  padding: 0 12px;
+}
+
+.data-editor .editor-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.data-editor .btn-danger {
+  background: #b33a3a;
+  color: white;
+  border: 1px solid #b33a3a;
+}
+
+.data-editor .btn-danger:hover {
+  background: #9a2f2f;
+  border-color: #9a2f2f;
+}
+
+.data-editor .modal-large {
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.data-editor .section-pill {
+  margin-left: 10px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: #eef3fa;
+  color: #4a6587;
+  border: 1px solid #dde7f3;
+}
+
+.data-editor .workflow-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  background: #f8faff;
+  border: 1px solid #e9eff7;
+  border-radius: 12px;
+  padding: 10px 16px;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #4a6587;
+}
+
+.data-editor .workflow-strip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.data-editor .workflow-strip i {
+  color: #3b7bd6;
+}
+
+.data-editor .workflow-strip .workflow-rejected {
+  color: #b33a3a;
+}
+
+.data-editor .workflow-strip .workflow-rejected i {
+  color: #b33a3a;
+}
+
+.data-editor .workflow-hint {
+  color: #62748e;
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.data-editor .add-row-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.data-editor .add-row-form .form-group {
+  margin-bottom: 0;
+}
+
+.data-editor .type-hint {
+  font-size: 12px;
+  color: #7c92b5;
+  font-weight: 400;
+}

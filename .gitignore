@@ -1,0 +1,38 @@
+# ─── Project context ───────────────────────────────
+# Scratch / reference folders
+Extra code snippets/
+Sample UIs/
+
+# Seed & uploaded data artifacts
+accounts.csv
+backend/media/
+
+# ─── Environment & secrets ─────────────────────────
+.env
+.env.*
+*.env
+backend/.env
+
+# ─── Python ────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+celerybeat-schedule*
+
+# ─── Virtual environments ──────────────────────────
+.venv/
+venv/
+ENV/
+
+# ─── OS / editors ──────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
