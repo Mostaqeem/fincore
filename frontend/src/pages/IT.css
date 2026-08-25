@@ -9,6 +9,7 @@
   background: #f4f7fc;
   height: 100vh;
   display: flex;
+  overflow: hidden;
 }
 
 .it-page .sidebar {
@@ -125,7 +126,8 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  overflow-y: auto;
   background: #f4f7fc;
 }
 
@@ -371,12 +373,14 @@
 
 .it-page .table-card .table-info {
   flex: 1;
+  min-width: 0;
 }
 
 .it-page .table-card .table-name {
   font-weight: 600;
   color: #0b1a33;
   font-size: 15px;
+  overflow-wrap: break-word;
 }
 
 .it-page .table-card .table-meta {
@@ -390,6 +394,7 @@
   gap: 8px;
   color: #7c92b5;
   font-size: 14px;
+  flex-shrink: 0;
 }
 
 .it-page .table-card .table-actions i {

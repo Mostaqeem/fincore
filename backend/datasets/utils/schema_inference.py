@@ -169,8 +169,22 @@ def generate_table_name(section='finance'):
     return f"ds_{section}_{suffix}"
 
 
-def create_table_and_insert(table_name, schema, df, task=None):
-    """Create a Postgres table and bulk insert data using COPY command."""
+def create_table_and_insert(table_name, schema, df, task=None, on_progress=None):
+    """Create a Postgres table and bulk insert data using COPY command.
+
+    Parameters
+    ----------
+    task : celery.Task | None
+        If provided, called as task.update_state(state='PROGRESS', meta=...)
+        per COPY chunk. This is what the existing frontend polling reads via
+        JobStatusView — keep it for backward compat.
+    on_progress : callable | None
+        Optional callback invoked per COPY chunk as
+        on_progress(current, total, phase). The datasets tasks module
+        passes a closure that fires a `job_progress` notification over
+        WebSocket. Kept separate from `task` so this utility stays
+        decoupled from Celery / notifications.
+    """
     import io
 
     with connection.cursor() as cursor:
@@ -199,15 +213,25 @@ def create_table_and_insert(table_name, schema, df, task=None):
             buffer.seek(0)
             cursor.copy_expert(copy_sql, buffer)
 
+            current = min(start + block_size, total_rows)
+            phase = 'inserting'
+
+            # Existing polling path — read by JobStatusView.
             if task:
                 task.update_state(
                     state='PROGRESS',
                     meta={
-                        'current': min(start + block_size, total_rows),
+                        'current': current,
                         'total': total_rows,
-                        'phase': 'inserting',
+                        'phase': phase,
                     }
                 )
+
+            # New real-time path — read by the WS frontend. Independent
+            # from `task` so callers without a Celery task (tests, ad-hoc
+            # scripts) can still get progress events.
+            if on_progress:
+                on_progress(current, total_rows, phase)
 
     return total_rows
 

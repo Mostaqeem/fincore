@@ -56,7 +56,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_otp_expired(self):
         if not self.otp_created_at:
             return True
-        return timezone.now() > self.otp_created_at + timedelta(minutes=10)
+        return timezone.now() > self.otp_created_at + timedelta(minutes=1)
 
     def verify_otp(self, otp):
         if self.otp == otp and not self.is_otp_expired():
@@ -93,7 +93,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_password_reset_otp_expired(self):
         if not self.password_reset_otp_created_at:
             return True
-        return timezone.now() > self.password_reset_otp_created_at + timedelta(minutes=10)
+        return timezone.now() > self.password_reset_otp_created_at + timedelta(minutes=1)
 
     def verify_password_reset_otp(self, otp):
         if self.password_reset_otp == otp and not self.is_password_reset_otp_expired():

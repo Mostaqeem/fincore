@@ -18,12 +18,19 @@ SECRET_KEY = 'django-insecure-1j*fijxe8o=k-ta44u8#h062zcwjs8f-^sx7q)3(x_*o1702r$
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+# Hosts Django will serve. Channels' AllowedHostsOriginValidator (in asgi.py)
+# checks WebSocket connections against this list. Empty by default would
+# reject WS upgrades with 400; localhost / 127.0.0.1 covers the dev server
+# accessed from Vite at http://localhost:5173. Tighten / expand for prod.
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
 
 INSTALLED_APPS = [
+    # Daphne MUST be listed before django.contrib.staticfiles — it provides
+    # an ASGI-capable runserver that handles both HTTP and WebSocket in dev.
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -33,13 +40,18 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
+    # Channels enables WebSocket support; CHANNEL_LAYERS below configures
+    # the transport (Redis).
+    'channels',
     'django_celery_beat',
     'accounts',
     'datasets',
     'employees',
+    'notifications',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -47,7 +59,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
+    
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
@@ -70,6 +82,10 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'userconfig.wsgi.application'
+# ASGI application used by Daphne / Channels for WebSocket support.
+# Pointed at userconfig.asgi:application, which wraps Django's ASGI app
+# with a ProtocolTypeRouter (see userconfig/asgi.py).
+ASGI_APPLICATION = 'userconfig.asgi.application'
 
 
 # Database
@@ -136,13 +152,16 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=1),
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
     'REFRESH_TOKEN_LIFETIME': timedelta(hours=2),
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
-CORS_ALLOW_ALL_ORIGINS = True  # tighten in production
-
+# CORS_ALLOW_ALL_ORIGINS = True  # tighten in production
+CORS_ALLOWED_ORIGINS = [
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+]
 
 # SMTP Configuration for sending emails
 
@@ -170,3 +189,20 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Asia/Dhaka"
 
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+
+# Channels (WebSocket) configuration
+#
+# The "default" channel layer is used by services.notify_user() (via
+# get_channel_layer()) to fan-out events to user groups. Reusing the same
+# Redis as the Celery broker is fine — channels_redis uses a different
+# key namespace, but for a busy app you may want to point at a separate
+# logical DB index (e.g. "redis://127.0.0.1:6379/1").
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+        },
+    },
+}

@@ -9,11 +9,11 @@ function OTPModal() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(600);
+  const [timeLeft, setTimeLeft] = useState(60);
 
   useEffect(() => {
     if (!user?.is_verified) {
-      setTimeLeft(600);
+      setTimeLeft(60);
     }
   }, [user]);
 
@@ -57,7 +57,7 @@ function OTPModal() {
 
     try {
       await api.post("/auth/resend-otp/");
-      setTimeLeft(600);
+      setTimeLeft(60);
       setOtp("");
     } catch {
       setError("Failed to resend OTP. Please try again.");

@@ -204,6 +204,81 @@ Full 1M-row upload is now roughly ~95s end-to-end.
 
 ---
 
+## Issue 8: Orphaned Datasets with `created_by=None` Block Workflow
+
+### Symptom
+Datasets created via the import pipeline had `created_by=None`. The frontend "Submit for Review" button never appears because it requires `isCreator` (`DataEditor.jsx:449`) — which is always `false` when `created_by` is null. Without submission, the status never reaches `submitted`/`in_review`, so reviewer/approver buttons never render.
+
+### Root Cause
+Early uploads were processed by the Celery worker before the `ImportJob.created_by` field was properly populated, or datasets were inserted via `CreateManualTableView` in a context where the request user was not linked. The resulting Dataset rows had `created_by = NULL`.
+
+**Verified DB State:**
+```
+cards_csv       | finance | draft | created_by=None
+TestFinance_csv | finance | draft | created_by=None
+```
+
+No user could submit these tables — the creator check blocked everyone.
+
+### Solution
+Patched orphaned datasets to assign `created_by` to the appropriate user. The Celery task (`datasets/tasks.py:57`) already passes `created_by=job.created_by` correctly; the issue was in existing data from early uploads.
+
+```python
+# Quick fix — assign orphaned datasets to the first non-staff user
+from datasets.models import Dataset
+from accounts.models import User
+
+owner = User.objects.filter(is_staff=False).first()
+Dataset.objects.filter(created_by__isnull=True).update(created_by=owner)
+```
+
+**Files involved:** `datasets/views.py` (`CreateManualTableView`), `datasets/tasks.py`
+
+---
+
+## Issue 9: Missing `RoleDepartment` Binding for Approver on Finance
+
+### Symptom
+Even after a dataset reaches `reviewed` status, no approver sees the "Approve" button because `can_approve` for finance is empty. The reviewer/approver workflow buttons never appear for users who have the correct role but lack a `RoleDepartment` binding.
+
+### Root Cause
+The seed migration (`employees/migrations/0003_seed_default_roles.py`) only created the Role objects (CREATOR, REVIEWER, APPROVER). It did **not** create `RoleDepartment` records linking roles to departments with module lists. The capability system requires three things to align:
+
+1. User has an `EmployeeProfile` with a department
+2. Profile has the role assigned
+3. A `RoleDepartment` record binds that role to the department with the right module
+
+Without step 3, `get_active_role_assignments()` returns an empty list and the user gets zero capabilities.
+
+**Verified DB State:**
+```
+RoleDepartment rows:
+  CREATOR  → FINANCE  [finance]
+  REVIEWER → FINANCE  [finance]
+  APPROVER → IT       [it]          ← missing APPROVER → FINANCE
+```
+
+No approver was bound to finance, so `can_approve` was empty for the finance module. The reviewer had `can_review` but the approver could never act.
+
+### Solution
+Created the missing `RoleDepartment` binding. To prevent this for fresh installs, seed `RoleDepartment` records alongside roles in a migration, binding each role to every existing department with appropriate modules (FINANCE→finance, IT→it, RISK→risk):
+
+```python
+# Fix existing data — bind APPROVER to FINANCE
+from employees.models import Role, Department, RoleDepartment
+
+finance = Department.objects.get(name="FINANCE")
+approver = Role.objects.get(name="APPROVER")
+RoleDepartment.objects.get_or_create(
+    role=approver, department=finance,
+    defaults={"modules": ["finance"], "is_active": True},
+)
+```
+
+**Files involved:** `employees/migrations/0003_seed_default_roles.py`, `employees/permissions.py`
+
+---
+
 ## Summary of Files Modified
 
 | File | Changes |
@@ -216,6 +291,8 @@ Full 1M-row upload is now roughly ~95s end-to-end.
 | `datasets/urls.py` | URL routing |
 | `userconfig/settings.py` | Added datasets app, MEDIA_ROOT/URL, Celery config |
 | `userconfig/urls.py` | Included datasets URLs |
+| `employees/permissions.py` | RBAC capability resolution (`get_active_role_assignments`, `user_module_capabilities`) — Issue 9 |
+| `employees/migrations/0003_seed_default_roles.py` | Seeded CREATOR/REVIEWER/APPROVER roles — Issue 9 |
 
 ---
 

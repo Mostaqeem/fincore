@@ -1,13 +1,18 @@
 import math
 from celery.result import AsyncResult
+from django.contrib.auth import get_user_model
 from django.http import Http404
 from django.db import connection
+from django.db.models import Count
 from django.utils import timezone
 from rest_framework import status, generics
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from employees.permissions import user_has_capability
+from notifications.services import notify_user
 
 from .models import Dataset, DatasetColumn, ImportJob
 from .permissions import HasSectionAccess
@@ -33,6 +38,26 @@ def conflict(message):
     return Response({'error': message}, status=status.HTTP_409_CONFLICT)
 
 
+def _notify_interested_users(exclude_user, dataset, notification_type, title, metadata=None):
+    """Notify all active users with review/approve permission for a dataset's section."""
+    User = get_user_model()
+    meta = {"dataset_id": str(dataset.id), "section": dataset.section}
+    if metadata:
+        meta.update(metadata)
+
+    interested_users = User.objects.filter(is_active=True).exclude(id=exclude_user.id)
+    for user in interested_users:
+        if user_has_capability(user, dataset.section, 'can_review') or \
+           user_has_capability(user, dataset.section, 'can_approve'):
+            notify_user(
+                user,
+                type=notification_type,
+                title=title,
+                metadata=meta,
+                persist=True,
+            )
+
+
 class UploadView(APIView):
     permission_classes = [IsAuthenticated, HasSectionAccess]
     required_capability = "can_create"
@@ -50,6 +75,18 @@ class UploadView(APIView):
             section=section,
             status='pending',
             created_by=request.user,
+        )
+
+        # Fire a `job_queued` notification before the worker picks up the
+        # task — gives the user immediate feedback that their upload was
+        # accepted. The terminal job_started / job_completed / job_failed
+        # events come from process_import_job itself (see datasets/tasks.py).
+        notify_user(
+            request.user,
+            type="job_queued",
+            title=f"{uploaded_file.name} queued for processing",
+            metadata={"job_id": str(job.id), "section": section},
+            persist=True,
         )
 
         process_import_job.delay(str(job.id))
@@ -116,6 +153,30 @@ class DatasetListView(APIView):
         datasets = Dataset.objects.filter(section=section)
         serializer = DatasetSerializer(datasets, many=True)
         return Response(serializer.data)
+
+
+class TableStatsView(APIView):
+    """Return the number of existing tables per department/section."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        section_counts = (
+            Dataset.objects
+            .values('section')
+            .annotate(count=Count('id'))
+            .order_by('-count')
+        )
+        choices = dict(Dataset.SECTION_CHOICES)
+        return Response({
+            'departments': [
+                {
+                    'name': choices.get(item['section'], item['section']),
+                    'count': item['count'],
+                }
+                for item in section_counts
+            ]
+        })
 
 
 class DatasetDetailView(APIView):
@@ -448,6 +509,13 @@ class SubmitView(APIView):
         dataset.rejection_comment = ''
         dataset.save()
 
+        _notify_interested_users(
+            exclude_user=request.user,
+            dataset=dataset,
+            notification_type="review_submitted",
+            title=f"Table submitted for review: {dataset.name}",
+        )
+
         return Response({'success': True, 'status': dataset.status})
 
 
@@ -477,6 +545,13 @@ class StartReviewView(APIView):
 
         dataset.status = 'in_review'
         dataset.save()
+
+        _notify_interested_users(
+            exclude_user=request.user,
+            dataset=dataset,
+            notification_type="review_started",
+            title=f"Review started for {dataset.name}",
+        )
 
         return Response({'success': True, 'status': dataset.status})
 
@@ -512,6 +587,14 @@ class ReviewApproveView(APIView):
         dataset.rejection_comment = ''
         dataset.save()
 
+        _notify_interested_users(
+            exclude_user=request.user,
+            dataset=dataset,
+            notification_type="review_approved",
+            title=f"Table review approved: {dataset.name}",
+            metadata={"comment": dataset.review_comment},
+        )
+
         return Response({'success': True, 'status': dataset.status})
 
 
@@ -546,6 +629,14 @@ class ApproveView(APIView):
         dataset.rejection_comment = ''
         dataset.save()
 
+        _notify_interested_users(
+            exclude_user=request.user,
+            dataset=dataset,
+            notification_type="table_approved",
+            title=f"Table approved: {dataset.name}",
+            metadata={"comment": dataset.approval_comment},
+        )
+
         return Response({'success': True, 'status': dataset.status})
 
 
@@ -569,8 +660,6 @@ class RejectView(APIView):
         if dataset.status not in ('in_review', 'reviewed'):
             return conflict(f"Only tables in review/reviewed can be rejected (current: {dataset.status}).")
 
-        from employees.permissions import user_has_capability
-
         can_review = user_has_capability(request.user, dataset.section, 'can_review')
         can_approve = user_has_capability(request.user, dataset.section, 'can_approve')
         if not (can_review or can_approve):
@@ -588,6 +677,27 @@ class RejectView(APIView):
         dataset.status = 'rejected'
         dataset.rejection_comment = request.data.get('comment', '')
         dataset.save()
+
+        rejection_meta = {"comment": dataset.rejection_comment}
+
+        # 1. Notify the table creator so they know their table was rejected.
+        if dataset.created_by:
+            notify_user(
+                dataset.created_by,
+                type="table_rejected",
+                title=f"Table rejected: {dataset.name}",
+                metadata=rejection_meta,
+                persist=True,
+            )
+
+        # 2. Notify other reviewers/approvers so they know the workflow ended.
+        _notify_interested_users(
+            exclude_user=request.user,
+            dataset=dataset,
+            notification_type="table_rejected",
+            title=f"Table rejected: {dataset.name}",
+            metadata=rejection_meta,
+        )
 
         return Response({'success': True, 'status': dataset.status})
 

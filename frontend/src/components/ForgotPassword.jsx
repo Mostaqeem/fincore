@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import api from "../axiosconfig";
 import "./ForgotPassword.css";
 
 function ForgotPassword({ onClose }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isChange = Boolean(user);
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -13,7 +16,7 @@ function ForgotPassword({ onClose }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(600);
+  const [timeLeft, setTimeLeft] = useState(60);
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
@@ -27,7 +30,7 @@ function ForgotPassword({ onClose }) {
 
   useEffect(() => {
     if (step === 2) {
-      setTimeLeft(600);
+      setTimeLeft(60);
     }
   }, [step]);
 
@@ -112,7 +115,7 @@ function ForgotPassword({ onClose }) {
 
     try {
       await api.post("/auth/forgot-password/", { email });
-      setTimeLeft(600);
+      setTimeLeft(60);
       setOtp("");
     } catch {
       setError("Failed to resend OTP. Please try again.");
@@ -124,6 +127,8 @@ function ForgotPassword({ onClose }) {
   const handleClose = () => {
     if (onClose) {
       onClose();
+    } else if (isChange) {
+      navigate("/dashboard");
     } else {
       navigate("/signin");
     }
@@ -139,23 +144,23 @@ function ForgotPassword({ onClose }) {
         {success ? (
           <div className="fp-success">
             <div className="fp-success-icon">&#10003;</div>
-            <h2>Password Reset!</h2>
+            <h2>{isChange ? "Password Changed!" : "Password Reset!"}</h2>
             <p>Your password has been changed successfully.</p>
             <p>Redirecting to login...</p>
           </div>
         ) : (
           <>
             <h2>
-              {step === 1 && "Forgot Password"}
+              {step === 1 && (isChange ? "Change Password" : "Forgot Password")}
               {step === 2 && "Verify OTP"}
-              {step === 3 && "Reset Password"}
+              {step === 3 && (isChange ? "Change Password" : "Reset Password")}
             </h2>
 
             {step === 1 && (
               <form onSubmit={handleEmailSubmit}>
                 <p className="fp-description">
-                  Enter your email address and we&apos;ll send you an OTP to
-                  reset your password.
+                  Enter your email address and we&apos;ll send you an OTP to{" "}
+                  {isChange ? "change" : "reset"} your password.
                 </p>
                 <input
                   type="email"
@@ -238,7 +243,13 @@ function ForgotPassword({ onClose }) {
                 />
                 {error && <p className="fp-error">{error}</p>}
                 <button type="submit" disabled={loading} className="fp-btn">
-                  {loading ? "Resetting..." : "Reset Password"}
+                  {loading
+                    ? isChange
+                      ? "Changing..."
+                      : "Resetting..."
+                    : isChange
+                    ? "Change Password"
+                    : "Reset Password"}
                 </button>
               </form>
             )}

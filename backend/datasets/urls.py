@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     path('upload/', views.UploadView.as_view(), name='upload'),
     path('create-manual/', views.CreateManualTableView.as_view(), name='create-manual'),
+    path('table-stats/', views.TableStatsView.as_view(), name='table-stats'),
     path('jobs/<uuid:job_id>/', views.JobStatusView.as_view(), name='job-status'),
     path('', views.DatasetListView.as_view(), name='dataset-list'),
     path('<int:pk>/', views.DatasetDetailView.as_view(), name='dataset-detail'),

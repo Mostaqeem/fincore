@@ -28,6 +28,7 @@ asynchronous processing → collaborative editing → review → approve → gov
 - [Getting Started](#getting-started)
 - [Screenshots](#screenshots)
 - [Security & Production Hardening](#security--production-hardening)
+- [Bug Fixes](#bug-fixes)
 - [Roadmap](#roadmap)
 - [License](#license)
 
@@ -66,9 +67,13 @@ The result is a system where trustworthy data is a process, not a promise.
 ### Authentication & Email Verification
 - Custom email-based user model (`AUTH_USER_MODEL`) on top of Django's auth primitives.
 - **JWT authentication** (access + refresh tokens) via `djangorestframework-simplejwt`.
-- Registration with **4-digit OTP email verification** (10‑minute expiry), resend OTP,
+- Registration with **4-digit OTP email verification** (1-minute expiry), resend OTP,
   and a complete **forgot-password** flow with OTP validation.
 - Branded transactional **HTML email templates** for welcome and password reset.
+
+| OTP verification | Branded SMTP email |
+|---|---|
+| ![2FA OTP](docs/screenshots/2FA.png) | ![SMTP preview](docs/screenshots/SMTP%20email%20preview.png) |
 
 ### Dynamic Schema Importer
 - Accepts `.csv`, `.xls`, and `.xlsx` uploads.
@@ -115,6 +120,47 @@ The result is a system where trustworthy data is a process, not a promise.
 - Admin area for user management, department management, role assignment, audit activity
   logs, notifications, and employee document tracking.
 
+### Real-Time Notification System
+- **Hybrid WebSocket + REST** delivery: instant push via Django Channels WebSocket and
+  persistent history via a REST API.
+- **Notification model** with typed events (`job_queued`, `job_started`, `job_progress`,
+  `job_completed`, `job_failed`, `general`), JSON metadata, and read/unread state.
+- **`notify_user()` service** — a single integration point called from Celery tasks and
+  all 5 review/approval workflow views (`SubmitView`, `StartReviewView`,
+  `ReviewApproveView`, `ApproveView`, `RejectView`).
+- **Workflow notifications** — every status transition notifies all users with
+  `can_review` / `can_approve` permissions for the dataset's section. Rejection also
+  notifies the table creator directly. The acting user is always excluded.
+- **JWT WebSocket auth** — browser passes the access token as a `?token=` query param;
+  a custom ASGI middleware validates it and attaches the user to the channel scope.
+- **React NotificationBell** — bell icon with unread badge (capped at 99+), dropdown
+  panel with type-specific icons, relative timestamps, and mark-as-read / mark-all-read.
+- **Zustand store** — manages notification list, unread count, WebSocket connection with
+  auto-reconnect, and a `progress` map for high-frequency job-progress events.
+- **Toast integration** — `react-hot-toast` fires success/error/pending toasts on
+  terminal events (`job_completed`, `job_failed`, etc.) without page refresh.
+
+![Notification bell panel](docs/screenshots/Table%20preview%20with%20notification%20panel%20opened.png)
+
+### Idle Timeout & Auto-Logout
+- **5-minute inactivity timeout** via a renderless `IdleTimer` React component.
+- Monitors 7 activity events (`mousemove`, `mousedown`, `click`, `keydown`, `keyup`,
+  `scroll`, `touchstart`) and persists the last-activity timestamp in `localStorage`.
+- Handles **tab visibility changes** — checks idle state when a hidden tab becomes visible
+  and logs out if the threshold was exceeded while the tab was backgrounded.
+- Integrated with `AuthContext` — on mount, checks if the user was idle while the app was
+  closed/refreshed and immediately clears tokens if so.
+
+### Dashboard Statistics & Visualization
+- **`DepartmentStats` component** — renders a Chart.js bar chart showing table counts per
+  department on the Dashboard page.
+- **`GET /api/employees/department-stats/`** — returns total user count and per-department
+  employee counts.
+- **`GET /api/datasets/table-stats/`** — returns table counts per dataset section for the
+  chart.
+
+![Dashboard with charts](docs/screenshots/Dashboard%20with%20charts.png)
+
 ---
 
 ## Tech Stack
@@ -127,6 +173,11 @@ The result is a system where trustworthy data is a process, not a promise.
 | Data | pandas + openpyxl + xlrd | CSV/Excel parsing & type inference |
 | API | Django REST Framework + SimpleJWT | JSON API, token auth, permission classes |
 | Email | Django SMTP with transactional templates | OTP & password-reset emails |
+| Realtime | Django Channels + `channels_redis` + Daphne | WebSocket notification infrastructure |
+| State | Zustand | React state management for notification store |
+| UI | `react-hot-toast` | Toast notification popups |
+| Charts | Chart.js + `react-chartjs-2` | Dashboard bar charts |
+| Utility | `date-fns` | Relative time formatting in notification bell |
 | Frontend | React 19, React Router 7 | SPA with protected/admin routing |
 | Build | Vite + React Compiler + Oxlint | Fast HMR builds, compiler-enabled, linted |
 | HTTP | Axios | Interceptors, JWT header injection |
@@ -162,6 +213,22 @@ User uploads .csv / .xls / .xlsx
         │
         ▼
   Approval pipeline (draft → submitted → in_review → reviewed → confirmed / rejected)
+```
+
+### Notification Flow
+
+```
+  Celery Task / DRF View
+        │
+        ▼
+  notify_user(user, type, title, metadata)
+        │
+        ├──► Notification DB row  (persist=True → bell history)
+        │
+        └──► Redis channel_layer.group_send("user_<id>", ...)
+                    │
+                    ▼
+              WebSocket → React NotificationBell (toast + badge update)
 ```
 
 ### Status Lifecycle
@@ -236,10 +303,25 @@ active role assignments.
 | POST | `/<pk>/review-approve/` | Review-approve (reviewer) |
 | POST | `/<pk>/approve/` | Final approve (approver) |
 | POST | `/<pk>/reject/` | Reject back for rework |
+| GET | `/table-stats/` | Table counts per section (dashboard chart) |
 
 ### Employees (`/api/employees/`)
 Users, departments, profiles (with employee IDs), roles, role-department assignments,
 activity logs, notifications, and documents — CRUD + `me/` + `me/notifications/`.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/department-stats/` | Total users + per-department employee counts |
+
+### Notifications (`/api/notifications/`)
+Real-time and persistent notification history for the bell icon.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/` | List notifications (optional `?unread=true`) |
+| GET | `/unread-count/` | Unread badge count |
+| POST | `/<id>/read/` | Mark one notification as read |
+| POST | `/read-all/` | Mark all as read |
 
 ---
 
@@ -248,21 +330,26 @@ activity logs, notifications, and documents — CRUD + `me/` + `me/notifications
 ```
 .
 ├── backend/
-│   ├── userconfig/          # project settings, URLs, WSGI, Celery app
+│   ├── userconfig/          # project settings, URLs, ASGI, Celery app
 │   ├── accounts/            # custom User, JWT, OTP verification, password reset
 │   ├── datasets/            # schema inference, async import, grid edit, workflow
 │   │   └── utils/schema_inference.py
 │   ├── employees/           # departments, profiles, roles, permissions, logs
+│   ├── notifications/       # Notification model, WebSocket consumer, JWT middleware, REST API
 │   ├── manage.py
 ├── frontend/
 │   ├── src/
-│   │   ├── components/      # Sidebar, TopBar, DataEditor, DatasetManager, OTP modal
+│   │   ├── components/      # Sidebar, TopBar, DataEditor, NotificationBell, IdleTimer, DepartmentStats
 │   │   ├── pages/           # Signin, Signup, Dashboard, Finance, IT, Risk
-│   │   ├── context/         # AuthContext (JWT persistence)
+│   │   ├── context/         # AuthContext (JWT persistence + idle timeout)
+│   │   ├── store/           # Zustand stores (notifications.js)
 │   │   └── services/        # Axios API clients + interceptors
 │   └── package.json
 ├── Dockerfile               # backend container (python:3.12-slim)
-├── docker-compose.yml       # Redis broker/backend for Celery
+├── docker-compose.yml       # Redis broker/backend for Celery + Channels
+├── BUGFIXES.md              # troubleshooting guide for schema importer + notification bugs
+├── docs/
+│   └── screenshots/         # README screenshots (dashboard, notifications, OTP, etc.)
 ├── requirements.txt
 └── schema_importer_spec.md  # original spec for the importer
 ```
@@ -344,12 +431,23 @@ that lands in your inbox, then upload a `.csv` to watch the pipeline run end-to-
 
 ## Screenshots
 
-*(Add screenshots here once compiled — e.g. `docs/screenshots/dashboard.png`,
-`docs/screenshots/importer.png`, `docs/screenshots/workflow.png`)*
+### Core Pipeline
 
-| Dashboard | Upload & progress | Grid editor |
+| Dashboard | Upload & progress | Data grid |
 |---|---|---|
-| `docs/screenshots/dashboard.png` | `docs/screenshots/upload.png` | `docs/screenshots/editor.png` |
+| ![Dashboard with charts](docs/screenshots/Dashboard%20with%20charts.png) | ![Upload progress bar](docs/screenshots/Table%20preview%20with%20progress%20bar.png) | ![Finance data table](docs/screenshots/Finance%20Data%20table%20board.png) |
+
+### Real-Time Notifications
+
+| Notification bell panel | RBAC admin matrix |
+|---|---|
+| ![Notification panel](docs/screenshots/Table%20preview%20with%20notification%20panel%20opened.png) | ![Admin role section](docs/screenshots/Admin%20panel%20role%20section.png) |
+
+### Authentication
+
+| OTP verification | Branded SMTP email |
+|---|---|
+| ![2FA OTP](docs/screenshots/2FA.png) | ![SMTP preview](docs/screenshots/SMTP%20email%20preview.png) |
 
 ---
 
@@ -386,12 +484,45 @@ Work-in-progress / future hardening:
 - [x] Async import with live progress & stale-job cleanup
 - [x] Full approval workflow with separation of duties
 - [x] Department + module-scoped RBAC
+- [x] Real-time notification bell with WebSocket delivery
+- [x] Dashboard department statistics chart
+- [x] Idle timeout & auto-logout
+- [x] Workflow notification integration (all 5 views)
 - [ ] Multi-file relational import & foreign-key inference
 - [ ] Dataset versioning & diffing to visualize reviewers' changes
 - [ ] Streaming/parallel imports and sharded writes for very large files
 - [ ] Audit-trail dashboard (visual timeline per dataset)
-- [ ] Notifications surfacing when it is your turn to review
 - [ ] Document OCR / verification workflow polish
+
+---
+
+## Bug Fixes
+
+During development, 12 bugs were encountered and resolved across the schema importer,
+approval workflow, and notification system. Full root-cause analysis and reproduction
+steps are in [`BUGFIXES.md`](BUGFIXES.md) and [`notification_bugs.md`](notification_bugs.md).
+
+### Schema Importer & Workflow
+
+| # | Bug | Fix |
+|---|-----|-----|
+| 1 | Celery task stuck in `pending` — worker not picking up jobs | Verified synchronous execution; timing issue resolved by ensuring worker connectivity |
+| 2 | Row-by-row INSERT extremely slow (750 rows > 2 min) | Replaced with PostgreSQL `COPY` bulk insert |
+| 3 | Cell edit returns 500 — `numpy.int64` type mismatch | Updated `cast_value()` to handle PostgreSQL type names (`character varying`, `numeric`, etc.) |
+| 4 | pandas `UserWarning: Could not infer format` on date columns | Added `format='mixed'` to `pd.to_datetime()` calls |
+| 5 | COPY failure — integer columns inferred as `TIMESTAMP` (`"74"` out of range) | Replaced `float.is_integer` with `pd.api.types.is_integer_dtype`; hardened date branch against pure-numeric columns |
+| 6 | Bare time-of-day columns (`11:25:37`) misclassified as `TIMESTAMP` | Added `pure_time` guard — columns matching `HH:MM(:SS)` pattern fall through to `VARCHAR` |
+| 7 | 1M-row upload extremely slow — `dateutil` fallback + `iterrows` loop | Sample-based inference (50K rows), regex pre-filters, UUID exclusion, chunked `COPY` (100K/block) |
+| 8 | Orphaned datasets with `created_by=None` blocking workflow submission | Patched existing data; Celery task now passes `created_by` from `ImportJob` |
+| 9 | Missing `RoleDepartment` binding for APPROVER on FINANCE | Created missing binding; seed migrations now create `RoleDepartment` records alongside roles |
+
+### Notification System
+
+| # | Bug | Fix |
+|---|-----|-----|
+| 10 | `channels_redis` TimeoutError with `redis-py 8.0.1` | Pinned `redis==5.0.1` for compatibility with `channels_redis 4.3.0` |
+| 11 | Missing notifications in all 5 review/approval workflow views | Added `notify_user()` calls to `SubmitView`, `StartReviewView`, `ReviewApproveView`, `ApproveView`, `RejectView` |
+| 12 | Incorrect notification recipients — actor notified instead of interested users | Extracted `_notify_interested_users()` helper; actor excluded, creator notified directly on rejection |
 
 ---
 

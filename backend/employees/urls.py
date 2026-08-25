@@ -15,5 +15,6 @@ router.register(r"documents", views.EmployeeDocumentViewSet, basename="employee-
 urlpatterns = [
     path("me/", views.MyProfileView.as_view(), name="my-profile"),
     path("me/notifications/", views.MyNotificationsView.as_view(), name="my-notifications"),
+    path("department-stats/", views.DepartmentStatsView.as_view(), name="department-stats"),
     path("", include(router.urls)),
 ]

@@ -131,6 +131,7 @@ function DataEditor({ datasetId, onBack, onUpdate }) {
     const { id: _rowId, ...rowData } = row;
     setEditingRowData(rowData);
     setIsEditingRow(true);
+    console.log("Editing row:", row.id, rowData);
   };
 
   const handleSaveEdit = async () => {
@@ -229,6 +230,7 @@ function DataEditor({ datasetId, onBack, onUpdate }) {
     try {
       await datasetApi.updateCell(datasetId, rowId, columnName, value);
       showFeedback(`Cell ${columnName} updated`);
+      console.log(`Cell updated: row ${rowId}, column ${columnName}, value ${value}`);
     } catch (err) {
       showFeedback("Failed to update cell: " + (err.response?.data?.error || err.message), true);
     }

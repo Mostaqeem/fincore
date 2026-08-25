@@ -2,6 +2,11 @@ from rest_framework import serializers
 from .models import Dataset, DatasetColumn, ImportJob
 
 
+def _full_name(user):
+    full = f"{user.first_name} {user.last_name}".strip()
+    return full or user.email
+
+
 class DatasetColumnSerializer(serializers.ModelSerializer):
     class Meta:
         model = DatasetColumn
@@ -30,22 +35,22 @@ class DatasetSerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         if obj.created_by:
-            return obj.created_by.get_full_name() or obj.created_by.email
+            return _full_name(obj.created_by)
         return None
 
     def get_submitted_by_name(self, obj):
         if obj.submitted_by:
-            return obj.submitted_by.get_full_name() or obj.submitted_by.email
+            return _full_name(obj.submitted_by)
         return None
 
     def get_reviewed_by_name(self, obj):
         if obj.reviewed_by:
-            return obj.reviewed_by.get_full_name() or obj.reviewed_by.email
+            return _full_name(obj.reviewed_by)
         return None
 
     def get_approved_by_name(self, obj):
         if obj.approved_by:
-            return obj.approved_by.get_full_name() or obj.approved_by.email
+            return _full_name(obj.approved_by)
         return None
 
 

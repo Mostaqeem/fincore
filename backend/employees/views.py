@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import get_user_model
+from django.db.models import Count
 
 from .models import (
     Department,
@@ -270,3 +271,30 @@ class MyNotificationsView(APIView):
         queryset = EmployeeNotification.objects.filter(employee=profile, is_read=False)
         updated = queryset.update(is_read=True, read_at=None)
         return Response({"success": True, "marked_read": updated})
+
+
+
+class DepartmentStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, format=None):
+        total_users = EmployeeProfile.objects.count()
+        dept_counts = (
+            Department.objects.annotate(emp_count=Count('employees'))
+            .values('name', 'emp_count')
+            .order_by('-emp_count')
+        )
+        # Convert internal codes to human‑readable labels
+        department_choices = dict(Department.DepartmentType.choices)
+        data = {
+            'totalUsers': total_users,
+            'departments': [
+                {
+                    'name': department_choices.get(item['name'], item['name']),
+                    'count': item['emp_count'],
+                }
+                for item in dept_counts
+            ],
+        }
+        return Response(data)
+

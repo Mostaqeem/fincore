@@ -1,12 +1,37 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import OTPModal from "../components/OTPModal";
 import Sidebar from "../components/Sidebar";
 import TopBar from "../components/TopBar";
+import DepartmentStats from "../components/DepartmentStats";
+import api from "../axiosconfig";
 import "./Dashboard.css";
 
 function Dashboard() {
   const { user } = useAuth();
+  const [stats, setStats] = useState({ totalUsers: 0, departments: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    Promise.all([
+      api.get("/employees/department-stats/"),
+      api.get("/datasets/table-stats/"),
+    ])
+      .then(([usersRes, tablesRes]) => {
+        setStats({
+          totalUsers: usersRes.data.totalUsers,
+          departments: tablesRes.data.departments,
+        });
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Dashboard stats fetch error:", err);
+        setError("Failed to load statistics.");
+        setLoading(false);
+      });
+  }, []);
 
   return (
     <div className="dashboard-container">
@@ -174,6 +199,17 @@ function Dashboard() {
               </div>
             </div>
           </div>
+
+          {loading && <div className="dept-loading">Loading statistics…</div>}
+          {error && <div className="dept-error">{error}</div>}
+          {!loading && !error && (
+            <div className="stats-section">
+              <DepartmentStats
+                totalUsers={stats.totalUsers}
+                departments={stats.departments}
+              />
+            </div>
+          )}
 
           <div style={{ display: "flex", gap: "24px", flexWrap: "wrap" }}>
             <div

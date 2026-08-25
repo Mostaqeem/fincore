@@ -114,6 +114,24 @@
   color: #4f7bb3;
 }
 
+/* Responsive adjustments for the sidebar */
+@media (max-width: 1200px) {
+  .sidebar {
+    width: 230px;
+    padding: 24px 16px 30px;
+  }
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    width: 200px;
+    padding: 22px 14px 30px;
+  }
+  .sidebar-brand {
+    margin-bottom: 32px;
+  }
+}
+
 @media (max-width: 860px) {
   .sidebar {
     width: 80px;

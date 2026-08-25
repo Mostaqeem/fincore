@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import NotificationBell from "./NotificationBell";
 import "./TopBar.css";
 
 function TopBar({ title, titleIcon }) {
@@ -32,9 +33,8 @@ function TopBar({ title, titleIcon }) {
         </div>
       </div>
       <div className="topbar-right">
-        <div className="notification">
-          <i className="fas fa-bell"></i>
-        </div>
+        {/* Live notification bell — badge, dropdown, real-time toasts. */}
+        <NotificationBell />
         <div className="user-dropdown-wrapper" ref={dropdownRef}>
           <div
             className="user-dropdown"
